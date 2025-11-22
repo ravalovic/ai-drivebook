@@ -1,0 +1,12 @@
+python-dotenv
+pydantic>=2.0
+typing-extensions
+pandas
+
+langchain-core
+langchain-openai
+langgraph
+
+openai
+mcp
+mcp.client.stdio

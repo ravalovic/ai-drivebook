@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-logbook"
+version = "0.1.0"
+description = "AI agent na plánovanie knihy jázd s OpenAI, LangGraph a MCP"
+authors = [
+  { name = "Rastislav Valovic", email = "ravalovic@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+
+dependencies = [
+  "python-dotenv",
+  "pydantic>=2.0",
+  "typing-extensions",
+  "pandas",
+  "langchain-core",
+  "langchain-openai",
+  "langgraph",
+  "mcp",   
+  "openai",   
+  "openpyxl",          
+]
+
+[project.optional-dependencies]
+dev = [
+  "black",
+  "isort",
+  "mypy",
+]
+
+[project.scripts]
+ai-logbook = "main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

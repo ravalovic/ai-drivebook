@@ -1,0 +1,20 @@
+{
+  "name": "distance-driving-server",
+  "version": "1.0.0",
+  "tools": [
+    {
+      "name": "driving_time_between_cities",
+      "description": "Vypočíta čas jazdy autom a vzdušnú vzdialenosť medzi dvomi mestami.",
+      "args": {
+        "city1": {
+          "type": "string",
+          "description": "Prvé mesto (napr. 'Bratislava')."
+        },
+        "city2": {
+          "type": "string",
+          "description": "Druhé mesto (napr. 'Praha')."
+        }
+      }
+    }
+  ]
+}

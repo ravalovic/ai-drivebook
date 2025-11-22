@@ -1,0 +1,378 @@
+import datetime
+import itertools
+from io import BytesIO
+import math
+from typing import List
+
+import pandas as pd
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+
+from config import MODEL_NAME
+from models import AgentState, TripEntry, TripSchedule
+
+
+# --- AI PLANNER ---
+
+def ai_planner_node(state: AgentState):
+    print(f"--- 1. AI PLANNING (Pokus: {state['retry_count']}) ---")
+
+    llm = ChatOpenAI(model=MODEL_NAME, temperature=0.1)
+
+    target = state["target_km"]
+    workdays = state["workdays"]
+    num_workdays = len(workdays)
+
+    # priemerná vzdialenosť destinácií
+    if state["available_destinations"]:
+        avg_dist = sum(c["dist"] for c in state["available_destinations"]) / len(state["available_destinations"])
+    else:
+        avg_dist = 50.0
+
+    min_trips_needed = math.ceil(target / (avg_dist * 2))
+    min_trips_needed = max(1, min(min_trips_needed, num_workdays))
+    max_trips_allowed = num_workdays  # max jedna jazda na deň
+
+    system_message = f"""
+    Si EXPERT na logistiku a plánovanie ciest. Tvojou úlohou je vygenerovať plán jázd
+    v JSON formáte podľa schémy TripSchedule.
+
+    DÔLEŽITÉ:
+    - Každý TripEntry predstavuje JEDNU služobnú cestu TAM A SPÄŤ v JEDNOM dni.
+    - distance_one_way je VZDIALENOSŤ JEDNOSMERNE, takže príspevok do total_km
+      pre jednu jazdu je distance_one_way * 2.
+    - Políčko day_index je index do zoznamu PRACOVNÉ DNI (0 až {num_workdays - 1}).
+    - V JEDEN DEŇ môže byť MAXIMÁLNE JEDNA jazda:
+        * všetky hodnoty day_index v plan MUSIA byť unikátne.
+    - Rovnaká trasa sa môže opakovať v rôznych dňoch ľubovoľný počet krát.
+
+    CIEĽ:
+    1. TOTAL_KM = sum(distance_one_way * 2) má byť čo najbližšie k {target} km,
+       ideálne v [TARGET_KM - 50, TARGET_KM + 50].
+    2. Počet jázd MUSÍ byť aspoň MIN_TRIPS_NEEDED = {min_trips_needed},
+       a NESMIE prekročiť MAX_TRIPS_ALLOWED = {max_trips_allowed}.
+    3. Môžeš cieľ mierne PREKROČIŤ (radšej nad ako hlboko pod).
+    4. Vzdialenosti môžeš upravovať o ±5 km na každę mesto.
+    5. Časy:
+       - odchod ráno medzi 06:00–08:00,
+       - návrat tak, aby celý výjazd trval > 8 hodín a < ako 13 hodín.
+
+    KONTROLA:
+    - V reasoning vypíš aj TOTAL_KM_REAL: <súčet distance_one_way * 2>.
+    - Skontroluj, že:
+        * počet položiek plan je v rozsahu [MIN_TRIPS_NEEDED, MAX_TRIPS_ALLOWED],
+        * day_index sú v rozsahu 0..{num_workdays - 1},
+        * day_index sú bez duplicít.
+    """
+
+    city_distances = "\n".join(
+        f"- {city['name']}: {city['dist']:.1f} km "
+        f"(Rozsah úpravy: {city['dist'] - 5:.1f} km až {city['dist'] + 5:.1f} km)"
+        for city in state["available_destinations"]
+    )
+
+    human_input = f"""
+    {state['feedback_message']}
+
+    TARGET_KM: {target}
+    MIN_TRIPS_NEEDED: {min_trips_needed}
+    MAX_TRIPS_ALLOWED: {max_trips_allowed}
+
+    PRACOVNÉ DNI (Indexy 0 - {num_workdays - 1}):
+    {workdays}
+
+    DOSTUPNÉ DESTINÁCIE (môžeš ich používať opakovane v rôznych dňoch):
+    {city_distances}
+
+    Vygeneruj JSON plán jázd (TripSchedule), ktorý spĺňa tieto pravidlá.
+    """
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_message),
+            ("human", human_input),
+        ]
+    )
+
+    structured_llm = llm.with_structured_output(TripSchedule)
+    chain = prompt | structured_llm
+    response: TripSchedule = chain.invoke({})
+
+    planned_km = sum(t.distance_one_way * 2 for t in response.plan)
+    print(f"AI Reasoning: {response.reasoning}")
+    print(f"AI naplánovala {len(response.plan)} jázd, vypočítaný TOTAL_KM_REAL: {planned_km:.1f} km.")
+
+    return {
+        "ai_trip_plan": response.plan,
+        "retry_count": state["retry_count"] + 1,
+        "feedback_message": "",
+        "next_step": "validator",
+    }
+
+
+# --- VALIDATOR ---
+
+def validator_node(state: AgentState):
+    """
+    Logika:
+    - Pod targetom o viac ako 50 km -> späť na AI PLANNER
+    - Pod targetom o max 50 km -> FINAL_CORRECTOR (pridá 1 jazdu do 50 km)
+    - Nad targetom o max 50 km -> FINAL_CORRECTOR (nič nepridá)
+    - Nad targetom o viac ako 50 km -> PY_TRIMMER (odstráni jazdy)
+    """
+
+    print(f"--- 2. VALIDÁCIA (Pokus: {state['retry_count'] - 1}) ---")
+
+    trips = state["ai_trip_plan"]
+    target = state["target_km"]
+
+    current_km_sum = sum(trip.distance_one_way * 2 for trip in trips)
+    diff = current_km_sum - target
+
+    print(f"AI plánované km: {current_km_sum:.2f}, Cieľ: {target}, odchýlka: {diff:+.2f} km")
+
+    if current_km_sum < target:
+        deficit = -diff
+
+        if deficit > 50:
+            if state["retry_count"] - 1 >= state["max_retries"]:
+                print("Maximálny počet pokusov, posielam do FINAL_CORRECTOR (nebude vedieť dorovnať všetko).")
+                return {"next_step": "final_corrector", "feedback_message": ""}
+
+            feedback = (
+                f"Celkový súčet km ({current_km_sum:.1f}) je o {deficit:.1f} km pod cieľom {target}. "
+                "Navrhni NOVÝ plán s viac jazdami alebo dlhšími trasami. "
+                "KĽUDNE MÔŽEŠ CIEĽ PREKROČIŤ (je lepšie byť nad cieľom ako pod ním)."
+            )
+            print("Príliš veľký deficit, vraciam späť na AI_PLANNER.")
+            return {"next_step": "ai_planner", "feedback_message": feedback}
+
+        print("Deficit ≤ 50 km -> FINAL_CORRECTOR doplní krátku jazdu.")
+        return {"next_step": "final_corrector", "feedback_message": ""}
+
+    else:
+        overshoot = diff
+
+        if overshoot > 50:
+            print("Prekročenie > 50 km -> PY_TRIMMER odstráni niektoré jazdy.")
+            return {"next_step": "py_trimmer", "feedback_message": ""}
+
+        print("Plán je nad targetom, ale v tolerancii ≤ 50 km -> FINAL_CORRECTOR bez úprav.")
+        return {"next_step": "final_corrector", "feedback_message": ""}
+
+
+# --- PYTHON TRIMMER (bez LLM) ---
+
+def py_trimmer_node(state: AgentState):
+    """
+    PYTHON TRIMMER:
+    - bez LLM skúšanie s LLM celé zle nevie dobre počítať 
+    - deterministicky odstraňuje 1–3 jazdy 
+    - cieľ: dostať sa čo najbližšie k targetu, bez pádu pod target-50
+    """
+
+    print("--- 3. PYTHON TRIMMER (odstraňovanie jázd) ---")
+
+    trips = state["ai_trip_plan"]
+    target = state["target_km"]
+
+    current_sum = sum(t.distance_one_way * 2 for t in trips)
+    print(f"PYTHON TRIMMER vstupný súčet: {current_sum:.1f} km, cieľ: {target} km")
+
+    if current_sum <= target + 50:
+        print("Súčet nie je významne nad targetom, trimmer nič nemení.")
+        return {
+            "ai_trip_plan": trips,
+            "next_step": "final_corrector",
+        }
+
+    best_plan = trips
+    best_sum = current_sum
+    best_diff = abs(current_sum - target)
+
+    n = len(trips)
+    indices = list(range(n))
+
+    def evaluate_candidate(indices_to_remove: set[int]):
+        nonlocal best_plan, best_sum, best_diff
+
+        remaining = [trips[i] for i in indices if i not in indices_to_remove]
+        if not remaining:
+            return
+
+        s = sum(t.distance_one_way * 2 for t in remaining)
+        if s < target - 50:
+            return
+
+        d = abs(s - target)
+
+        better = False
+        if d < best_diff:
+            better = True
+        elif d == best_diff:
+            if s >= target and best_sum < target:
+                better = True
+            elif (s >= target) == (best_sum >= target) and s > best_sum:
+                better = True
+
+        if better:
+            best_plan = remaining
+            best_sum = s
+            best_diff = d
+
+    for k in (1, 2, 3):
+        for combo in itertools.combinations(indices, k):
+            evaluate_candidate(set(combo))
+
+    print(
+        f"PYTHON TRIMMER nový súčet: {best_sum:.1f} km "
+        f"(odchýlka: {best_sum - target:+.1f} km)"
+    )
+
+    return {
+        "ai_trip_plan": best_plan,
+        "next_step": "final_corrector",
+    }
+
+
+# --- FINAL CORRECTOR ---
+
+def final_corrector_node(state: AgentState):
+    """
+    Finálny korektor:
+    - Ak je plán nad targetom, nič nepridáva.
+    - Ak je plán pod targetom o MAX 50 km, doplní JEDNU servisnú jazdu
+      (max 50 km tam+späť = max 25 km one-way).
+    """
+
+    print("--- 4. FINÁLNA PYTHON KOREKCIA (jemné doladenie) ---")
+
+    trips = state["ai_trip_plan"]
+    target = state["target_km"]
+    workdays = state["workdays"]
+
+    current_km_sum = sum(t.distance_one_way * 2 for t in trips)
+    diff = current_km_sum - target
+
+    print(f"FINAL_CORRECTOR vstupný súčet: {current_km_sum:.2f} km, "
+          f"cieľ: {target}, odchýlka: {diff:+.2f} km")
+
+    if current_km_sum >= target:
+        print("Plán je nad alebo presne na targete – nekorigujem, len posúvam ďalej.")
+        final_sum = current_km_sum
+        return {"ai_trip_plan": trips, "final_sum_km": final_sum, "next_step": "processor"}
+
+    deficit = target - current_km_sum
+    if deficit <= 0 or deficit > 50:
+        print("Deficit mimo 0–50 km – nekorigujem nič, len posúvam ďalej.")
+        final_sum = current_km_sum
+        return {"ai_trip_plan": trips, "final_sum_km": final_sum, "next_step": "processor"}
+
+    one_way_dist = min(deficit / 2, 25.0)
+
+    if workdays:
+        day_index_for_fill = len(workdays) - 1
+    else:
+        day_index_for_fill = 0
+
+    trips.append(
+        TripEntry(
+            day_index=day_index_for_fill,
+            destination_name="Servisná Jazda (doladenie)",
+            distance_one_way=round(one_way_dist, 1),
+            departure_time="14:00",
+            return_departure_time="15:00",
+        )
+    )
+
+    final_sum = sum(t.distance_one_way * 2 for t in trips)
+    print(f"Pridaná servisná jazda {one_way_dist:.1f} km (one-way). "
+          f"Nový súčet: {final_sum:.2f} km (odchýlka: {final_sum - target:+.2f} km).")
+
+    return {"ai_trip_plan": trips, "final_sum_km": final_sum, "next_step": "processor"}
+
+
+# --- PROCESSOR ---
+
+def processor_node(state: AgentState):
+    """
+    Spracuje AI výstup, prepočíta tachometer a vytvorí CSV.
+    """
+    print("--- 5. PROCESSING & FORMATTING ---")
+
+    trips = state["ai_trip_plan"]
+    workdays = state["workdays"]
+    current_odo = state["start_odo"]
+
+    trips.sort(key=lambda x: x.day_index)
+
+    data_rows = []
+    total_dist_check = 0.0
+
+    for trip in trips:
+        if trip.day_index >= len(workdays):
+            continue
+
+        date_str = workdays[trip.day_index]
+
+        # tu trvanie nevyužívaš na nič kritické, tak 60 min fallback OK
+        duration_mins = 60
+
+        dep_time_obj = datetime.datetime.strptime(trip.departure_time, "%H:%M")
+        ret_dep_time_obj = datetime.datetime.strptime(trip.return_departure_time, "%H:%M")
+
+        arr_time_obj = dep_time_obj + datetime.timedelta(minutes=duration_mins)
+        ret_arr_time_obj = ret_dep_time_obj + datetime.timedelta(minutes=duration_mins)
+
+        dist_one_way = trip.distance_one_way
+
+        data_rows.append(
+            {
+                "Dátum": date_str,
+                "Odchod Miesto": state["start_city"],
+                "Odchod Čas": trip.departure_time,
+                "Cieľ Miesto": trip.destination_name,
+                "Príchod Čas": arr_time_obj.strftime("%H:%M"),
+                "Stav Tachometra": int(current_odo),
+                "Km Jazda": dist_one_way,
+            }
+        )
+        current_odo += dist_one_way
+
+        data_rows.append(
+            {
+                "Dátum": date_str,
+                "Odchod Miesto": trip.destination_name,
+                "Odchod Čas": trip.return_departure_time,
+                "Cieľ Miesto": state["start_city"],
+                "Príchod Čas": ret_arr_time_obj.strftime("%H:%M"),
+                "Stav Tachometra": int(current_odo),
+                "Km Jazda": dist_one_way,
+            }
+        )
+        current_odo += dist_one_way
+        total_dist_check += dist_one_way * 2
+
+    df = pd.DataFrame(data_rows)
+    csv_output = df.to_csv(sep=";", index=False)
+    
+    #XLSX vystup 
+    # Explicitné to_excel do pamäte
+    buffer = BytesIO()
+    df.to_excel(buffer, index=False, sheet_name="Jazdy")
+    buffer.seek(0)
+    xlsx_bytes = buffer.getvalue()
+
+
+    print(f"Skontrolovaný súčet km: {total_dist_check:.2f}")
+
+    return {
+        "final_csv": csv_output, 
+        "final_xlsx_bytes": xlsx_bytes,
+    }
+
+
+# --- ROUTE PLANNER PRE LANGGRAPH ---
+
+def route_planner(state: AgentState) -> str:
+    return state["next_step"]
