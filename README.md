@@ -1,24 +1,3 @@
 # ai-drivebook
 
-Small AI agent logbook project (OpenAI + MCP cycle).
-
-How to upload to GitHub:
-
-1. Create a repository on GitHub (website) named `ai-drivebook`.
-2. Add remote and push:
-
-```bash
-git remote add origin https://github.com/<your-username>/ai-drivebook.git
-git branch -M main
-git push -u origin main
-```
-
-Or use `gh` (GitHub CLI):
-
-```bash
-gh repo create ai-drivebook --public --source=. --remote=origin --push
-```
-
-Replace `<your-username>` with your GitHub username.
-
-License: choose as appropriate.# ai-drivebook
+Generates a list of cities using an LLM through an MCP server, queries OpenStreetMap to determine distances and driving routes between them, and then produces a set of weekday travel plans. The routes are automatically adjusted to match the required target distance. Finally, the tool exports the results into both CSV and XLSX output files.
