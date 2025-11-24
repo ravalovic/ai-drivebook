@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Drivebook – vstupné údaje</title>
+    <link rel="stylesheet" href="/static/style.css">    
+</head>
+
+<body>
+    <h1>AI Drivebook – generovanie knihy jázd</h1>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        Pracujem… generujem knihu jázd.  
+        <br>Prosím čakajte (trvá to ~10–30 sekúnd).
+    </div>
+
+    <form method="post" action="/generate" onsubmit="showLoading()">
+        <label>
+            Východzie mesto:
+            <input type="text" name="start_city" value="{{ defaults.start_city }}" required>
+        </label>
+        <br>
+
+        <label>
+            Počiatočný stav tachometra:
+            <input type="number" name="start_odo" value="{{ defaults.start_odo }}" required>
+        </label>
+        <br>
+
+        <label>
+            Konečný stav tachometra:
+            <input type="number" name="end_odo" value="{{ defaults.end_odo }}" required>
+        </label>
+        <br>
+
+        <label>
+            Mesiac:
+            <input type="number" name="month" min="1" max="12" value="{{ defaults.month }}" required>
+        </label>
+        <br>
+
+        <label>
+            Rok:
+            <input type="number" name="year" value="{{ defaults.year }}" required>
+        </label>
+        <br><br>
+
+        <button type="submit">Vygenerovať knihu jázd</button>
+    </form>
+
+    <script>
+        function showLoading() {
+            document.getElementById("loading-overlay").style.display = "flex";
+        }
+    </script>
+</body>
+</html>

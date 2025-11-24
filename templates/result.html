@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Drivebook – výsledok</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Výsledná kniha jázd</h1>
+
+    <p>
+        Východzie mesto: <strong>{{ start_city }}</strong><br>
+        Start odo: <strong>{{ start_odo }}</strong><br>
+        End odo: <strong>{{ end_odo }}</strong><br>
+        Mesiac/Rok: <strong>{{ month }}/{{ year }}</strong><br>
+        Cieľová vzdialenosť: <strong>{{ target_km }} km</strong>
+    </p>
+
+    <div class="layout">
+    <div class="table-card">
+        <h2>Vygenerovaná kniha jázd</h2>
+
+        <div class="table-wrapper">
+            {{ table_html | safe }}
+        </div>
+
+        <div class="downloads">
+            <a href="/download/csv/{{ job_id }}">Stiahnuť CSV</a>
+            <a href="/download/xlsx/{{ job_id }}">Stiahnuť XLSX</a>
+        </div>
+
+        <a href="/" class="back-link">⬅ Späť na formulár</a>
+    </div>
+</div>
+
+</body>
+</html>
