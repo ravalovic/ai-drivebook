@@ -18,10 +18,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # templates/ folder pre HTML šablóny
 templates = Jinja2Templates(directory="templates")
 
-# ak chceš statické súbory (CSS...), môžeš použiť:
-# app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     # default hodnoty do formulára
