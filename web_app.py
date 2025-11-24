@@ -44,7 +44,7 @@ async def generate(
     year: int = Form(...),
 ):
     # spustíme backend službu
-    df, csv_str, xlsx_bytes = run_logbook(
+    df, csv_str, xlsx_bytes = await run_logbook(
         start_city=start_city,
         start_odo=start_odo,
         end_odo=end_odo,
@@ -57,7 +57,11 @@ async def generate(
     RESULT_STORE[job_id] = {
         "csv": csv_str,
         "xlsx": xlsx_bytes,
+        "month": month,
+        "year": year,
     }
+
+
 
     # premenné pre HTML – tabuľka z df
     table_html = df.to_html(classes="table table-striped", index=False)
@@ -85,12 +89,16 @@ async def download_csv(job_id: str):
         return HTMLResponse("Neznámy job_id", status_code=404)
 
     csv_str = data["csv"]
+    month = data.get("month", "xx")
+    year = data.get("year", "xxxx")
+
+    filename = f"kniha_jazd_ai_{month}_{year}.csv"
+
     return StreamingResponse(
         io.StringIO(csv_str),
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="kniha_jazd_ai.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
 
 @app.get("/download/xlsx/{job_id}")
 async def download_xlsx(job_id: str):
@@ -99,8 +107,14 @@ async def download_xlsx(job_id: str):
         return HTMLResponse("Neznámy job_id", status_code=404)
 
     xlsx_bytes = data["xlsx"]
+    month = data.get("month", "xx")
+    year = data.get("year", "xxxx")
+
+    filename = f"kniha_jazd_ai_{month}_{year}.xlsx"
+
     return StreamingResponse(
         io.BytesIO(xlsx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="kniha_jazd_ai.xlsx"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+

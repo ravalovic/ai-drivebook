@@ -1,5 +1,4 @@
 # service.py
-import asyncio
 import io
 from typing import Tuple
 
@@ -13,7 +12,7 @@ from utils import get_workdays
 from workflow import build_workflow
 
 
-def run_logbook(
+async def run_logbook(
     start_city: str,
     start_odo: int,
     end_odo: int,
@@ -22,11 +21,15 @@ def run_logbook(
 ) -> Tuple[pd.DataFrame, str, bytes]:
     """
     Spustí celý workflow a vráti:
-    - DataFrame s výsledkami
-    - CSV obsah (string)
-    - XLSX obsah (bytes)
+      - DataFrame s výsledkami
+      - CSV obsah (string)
+      - XLSX obsah (bytes)
+
+    Je ASYNC, takže sa volá z FastAPI endpointu ako:
+        df, csv_str, xlsx_bytes = await run_logbook(...)
     """
 
+    # --- 1. Príprava vstupného stavu pre LangGraph agent ---
     inputs: AgentState = {
         "start_city": start_city,
         "start_odo": start_odo,
@@ -45,31 +48,36 @@ def run_logbook(
         "final_sum_km": 0.0,
     }
 
-    # 1. pracovné dni & target km
+    # pracovné dni & cieľové km
     inputs["workdays"] = get_workdays(year, month)
     inputs["target_km"] = end_odo - start_odo
     print(f"[service] target_km = {inputs['target_km']} km")
 
-    # 2. LLM mestá + MCP mapové dáta
+    # --- 2. LLM kandidátske mestá + MCP mapové dáta ---
     city_map = None
     try:
+        # LLM výber miest – sync volanie OpenAI
         candidate_cities = get_candidate_cities_from_llm(start_city)
-        city_map = asyncio.run(get_map_data_from_mcp(start_city, candidate_cities))
+
+        # MCP volanie – async, preto await
+        city_map = await get_map_data_from_mcp(start_city, candidate_cities)
     except Exception as e:
         print(f"[service] VAROVANIE: MCP/LLM zlyhalo: {e}")
-        print("[service] Použijem statický fallback.")
+        print("[service] Použijem statické fallback mapové dáta.")
 
-    # 3. MapService & workflow
+    # --- 3. MapService + LangGraph workflow ---
     map_tool = MapService(city_map)
     inputs["available_destinations"] = map_tool.get_destinations(start_city)
 
     app = build_workflow()
-    result = app.invoke(inputs)
+    result = app.invoke(inputs)  # LangGraph je synchronný
 
     csv_str = result["final_csv"]
+
+    # --- 4. CSV -> DataFrame ---
     df = pd.read_csv(io.StringIO(csv_str), sep=";")
 
-    # XLSX do bytes
+    # --- 5. DataFrame -> XLSX (do pamäte) ---
     xlsx_buffer = io.BytesIO()
     df.to_excel(xlsx_buffer, index=False)
     xlsx_buffer.seek(0)
