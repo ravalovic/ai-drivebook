@@ -325,7 +325,7 @@ def processor_node(state: AgentState):
         ret_arr_time_obj = ret_dep_time_obj + datetime.timedelta(minutes=duration_mins)
 
         dist_one_way = trip.distance_one_way
-
+        current_odo += dist_one_way
         data_rows.append(
             {
                 "Dátum": date_str,
@@ -337,8 +337,8 @@ def processor_node(state: AgentState):
                 "Km Jazda": dist_one_way,
             }
         )
+        
         current_odo += dist_one_way
-
         data_rows.append(
             {
                 "Dátum": date_str,
@@ -350,7 +350,7 @@ def processor_node(state: AgentState):
                 "Km Jazda": dist_one_way,
             }
         )
-        current_odo += dist_one_way
+        
         total_dist_check += dist_one_way * 2
 
     df = pd.DataFrame(data_rows)

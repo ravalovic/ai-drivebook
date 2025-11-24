@@ -9,7 +9,7 @@ langgraph
 
 openai
 mcp
-mcp.client.stdio
+mcp.client
 openpyxl  
 fastapi
 uvicorn
