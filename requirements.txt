@@ -10,3 +10,8 @@ langgraph
 openai
 mcp
 mcp.client.stdio
+openpyxl  
+fastapi
+uvicorn
+jinja2
+python-multipart
