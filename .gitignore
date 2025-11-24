@@ -32,4 +32,4 @@ dist/
 *.db
 
 # Excel exports
-*.xlsx
+# (tracked intentionally) - removed global ignore for .xlsx to allow committed spreadsheets
