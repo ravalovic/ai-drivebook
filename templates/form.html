@@ -2,58 +2,79 @@
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
-    <title>AI Drivebook – vstupné údaje</title>
-    <link rel="stylesheet" href="/static/style.css">    
+    <title>AI Drivebook – Generátor knihy jázd</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
-
 <body>
-    <h1>AI Drivebook – generovanie knihy jázd</h1>
+<div class="form-container">
+    <h2>AI Drivebook – Generátor knihy jázd</h2>
 
-    <!-- LOADING OVERLAY -->
-    <div id="loading-overlay">
-        <div class="spinner"></div>
-        Pracujem… generujem knihu jázd.  
-        <br>Prosím čakajte (trvá to ~10–30 sekúnd).
-    </div>
+    <form id="drivebook-form" method="post" action="/generate">
 
-    <form method="post" action="/generate" onsubmit="showLoading()">
-        <label>
-            Východzie mesto:
-            <input type="text" name="start_city" value="{{ defaults.start_city }}" required>
-        </label>
-        <br>
+        <div class="form-group">
+            <label for="start_city">Východzie mesto</label>
+            <input type="text" id="start_city" name="start_city" value="{{ defaults.start_city }}" required>
+        </div>
 
-        <label>
-            Počiatočný stav tachometra:
-            <input type="number" name="start_odo" value="{{ defaults.start_odo }}" required>
-        </label>
-        <br>
+        <div class="form-group">
+            <label for="start_odo">Počiatočný stav tachometra</label>
+            <input type="number" id="start_odo" name="start_odo" value="{{ defaults.start_odo }}" required>
+        </div>
 
-        <label>
-            Konečný stav tachometra:
-            <input type="number" name="end_odo" value="{{ defaults.end_odo }}" required>
-        </label>
-        <br>
+        <div class="form-group">
+            <label for="end_odo">Koncový stav tachometra</label>
+            <input type="number" id="end_odo" name="end_odo" value="{{ defaults.end_odo }}" required>
+        </div>
 
-        <label>
-            Mesiac:
-            <input type="number" name="month" min="1" max="12" value="{{ defaults.month }}" required>
-        </label>
-        <br>
+        <div class="form-group">
+            <label for="month">Mesiac</label>
+            <input type="number" id="month" name="month" min="1" max="12" value="{{ defaults.month }}" required>
+        </div>
 
-        <label>
-            Rok:
-            <input type="number" name="year" value="{{ defaults.year }}" required>
-        </label>
-        <br><br>
+        <div class="form-group">
+            <label for="year">Rok</label>
+            <input type="number" id="year" name="year" value="{{ defaults.year }}" required>
+        </div>
 
-        <button type="submit">Vygenerovať knihu jázd</button>
+        <div class="button-wrapper">
+            <button type="submit" class="submit-btn">Vygenerovať knihu jázd</button>
+        </div>
+
     </form>
 
-    <script>
-        function showLoading() {
-            document.getElementById("loading-overlay").style.display = "flex";
+    <p class="note">
+        Posledné zadané hodnoty sa ukladajú v prehliadači (localStorage), takže sa<br>
+        zachovajú aj po návrate späť alebo po reštarte servera.
+    </p>
+</div>
+
+<!-- LocalStorage JS -->
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const FIELD_IDS = ["start_city", "start_odo", "end_odo", "month", "year"];
+        const PREFIX = "drivebook_";
+
+        // Load saved values
+        FIELD_IDS.forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const saved = localStorage.getItem(PREFIX + id);
+            if (saved !== null) el.value = saved;
+        });
+
+        // Save on submit
+        const form = document.getElementById("logbook-form");
+        if (form) {
+            form.addEventListener("submit", () => {
+                FIELD_IDS.forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    localStorage.setItem(PREFIX + id, el.value);
+                });
+            });
         }
-    </script>
+    });
+</script>
+
 </body>
 </html>

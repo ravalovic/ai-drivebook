@@ -76,9 +76,6 @@ h1 {
 
 form {
     margin-top: 8px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px 18px;
 }
 
 .field-full {
@@ -262,3 +259,107 @@ thead {
 .back-link:hover {
     text-decoration: underline;
 }
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 30px;
+}
+
+.container {
+    max-width: 520px;
+    margin: auto;
+}
+
+.title {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.card.form-card {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.form-row-vertical {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 18px;
+}
+
+.form-row-vertical label {
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-row-vertical input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 15px;
+}
+
+.submit-btn {
+    margin-top: 15px;
+    width: 100%;
+    padding: 12px;
+    background: #0066ff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.submit-btn:hover {
+    background: #004ecc;
+}
+
+.small-note {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 13px;
+    color: #777;
+}
+.form-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 40px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 6px 22px rgba(0,0,0,0.08);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 24px;
+}
+
+.form-group label {
+    font-weight: 700;
+    color: #6c6c7a;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+}
+
+.form-group input {
+    padding: 14px;
+    background: #2f3545;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 16px;
+}
+
+.button-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.submit-btn {
+    padding: 18px 30px;
