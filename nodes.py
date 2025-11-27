@@ -56,7 +56,12 @@ def ai_planner_node(state: AgentState):
     5. Časy:
        - odchod ráno medzi 06:00–08:00,
        - návrat tak, aby celý výjazd trval > 8 hodín a < ako 13 hodín.
-
+    7. Pridaj krátky popis účelu cesty v poli description (3–6 slov).
+        - Pre každú jazdu doplň JSON-pole "description".
+        - description musí mať max 6 slov.
+        - musí byť všeobecný (bez osobných údajov a názvov firiem).
+        - Popis sa má týkať podnikania a IT aktivít.
+        - Príklady: "Servis IT infraštruktúry", "Kontrola technického vybavenia", "Obchodné rokovanie o IT", "Konzultácia vývoja softvéru", "Implementácia cloud riešenia", "Analýza bezpečnostných rizík".
     KONTROLA:
     - V reasoning vypíš aj TOTAL_KM_REAL: <súčet distance_one_way * 2>.
     - Skontroluj, že:
@@ -165,20 +170,24 @@ def validator_node(state: AgentState):
 
 def py_trimmer_node(state: AgentState):
     """
-    PYTHON TRIMMER:
-    - bez LLM skúšanie s LLM celé zle nevie dobre počítať 
-    - deterministicky odstraňuje 1–3 jazdy 
-    - cieľ: dostať sa čo najbližšie k targetu, bez pádu pod target-50
+    PYTHON TRIMMER (nová verzia):
+    - bez LLM, iteratívne odstraňuje jazdy
+    - cieľ: dostať sa čo najbližšie k targetu
+    - preferuje interval [target - 50, target + 50], ale je best-effort
     """
 
     print("--- 3. PYTHON TRIMMER (odstraňovanie jázd) ---")
 
-    trips = state["ai_trip_plan"]
+    trips = list(state["ai_trip_plan"])  # pracujeme na kópii
     target = state["target_km"]
 
-    current_sum = sum(t.distance_one_way * 2 for t in trips)
+    def total_km(trip_list):
+        return sum(t.distance_one_way * 2 for t in trip_list)
+
+    current_sum = total_km(trips)
     print(f"PYTHON TRIMMER vstupný súčet: {current_sum:.1f} km, cieľ: {target} km")
 
+    # Ak nie sme významne nad targetom, nie je čo trimmovať
     if current_sum <= target + 50:
         print("Súčet nie je významne nad targetom, trimmer nič nemení.")
         return {
@@ -186,54 +195,75 @@ def py_trimmer_node(state: AgentState):
             "next_step": "final_corrector",
         }
 
-    best_plan = trips
-    best_sum = current_sum
-    best_diff = abs(current_sum - target)
+    # Iteratívne odstraňovanie jázd
+    # Budeme hľadať vždy takú jazdu, ktorej odstránenie nás najviac priblíži k targetu.
+    while True:
+        current_sum = total_km(trips)
+        overshoot = current_sum - target
 
-    n = len(trips)
-    indices = list(range(n))
+        print(f"  Aktuálny súčet: {current_sum:.1f} km (overshoot: {overshoot:+.1f} km)")
 
-    def evaluate_candidate(indices_to_remove: set[int]):
-        nonlocal best_plan, best_sum, best_diff
+        # Sme v tolerancii? -> hotovo
+        if abs(overshoot) <= 50:
+            print("  Sme v tolerancii ±50 km, končím trimmovanie.")
+            break
 
-        remaining = [trips[i] for i in indices if i not in indices_to_remove]
-        if not remaining:
-            return
+        if not trips or overshoot <= 0:
+            # už nie je čo odstraňovať alebo sme pod targetom
+            print("  Nie je čo odstraňovať alebo už nie sme nad targetom, končím.")
+            break
 
-        s = sum(t.distance_one_way * 2 for t in remaining)
-        if s < target - 50:
-            return
+        # Vyberieme najlepšiu jazdu na odstránenie
+        best_index = None
+        best_new_sum = None
+        best_diff = None
 
-        d = abs(s - target)
+        candidates = []
+        for idx, trip in enumerate(trips):
+            contrib = trip.distance_one_way * 2
+            new_sum = current_sum - contrib
+            diff = abs(new_sum - target)
+            candidates.append((idx, new_sum, diff))
 
-        better = False
-        if d < best_diff:
-            better = True
-        elif d == best_diff:
-            if s >= target and best_sum < target:
-                better = True
-            elif (s >= target) == (best_sum >= target) and s > best_sum:
-                better = True
+        # Preferujeme kandidátov, kde new_sum >= target - 50 (aby sme nepadli hlboko pod)
+        preferred = [c for c in candidates if c[1] >= (target - 50)]
+        if not preferred:
+            # ak žiadny taký nie je, berieme všetkých – radšej byť výrazne bližšie,
+            # aj keby sme spadli trochu pod target - 50
+            preferred = candidates
 
-        if better:
-            best_plan = remaining
-            best_sum = s
-            best_diff = d
+        # vyber najlepší – minimálna odchýlka, pri rovnosti preferujeme súčet nad targetom
+        def sort_key(c):
+            idx, new_sum, diff = c
+            # priorita: 1) menší diff, 2) či je nad targetom, 3) väčší new_sum
+            above = 0 if new_sum >= target else 1
+            return (diff, above, -new_sum)
 
-    for k in (1, 2, 3):
-        for combo in itertools.combinations(indices, k):
-            evaluate_candidate(set(combo))
+        best_index, best_new_sum, best_diff = min(preferred, key=sort_key)
 
+        removed_trip = trips.pop(best_index)
+        print(
+            f"  Odstraňujem jazdu: deň {removed_trip.day_index}, "
+            f"{removed_trip.destination_name}, príspevok {removed_trip.distance_one_way * 2:.1f} km -> "
+            f"nový súčet: {best_new_sum:.1f} km (odchýlka: {best_new_sum - target:+.1f} km)"
+        )
+
+        # bezpečnostná brzda – keby sa z nejakého dôvodu už nezlepšovala situácia
+        if len(trips) == 0:
+            print("  Všetky jazdy odstránené, končím.")
+            break
+
+    final_sum = total_km(trips)
     print(
-        f"PYTHON TRIMMER nový súčet: {best_sum:.1f} km "
-        f"(odchýlka: {best_sum - target:+.1f} km)"
+        f"PYTHON TRIMMER výsledný súčet: {final_sum:.1f} km "
+        f"(odchýlka: {final_sum - target:+.1f} km)"
     )
 
     return {
-        "ai_trip_plan": best_plan,
+        "ai_trip_plan": trips,
         "next_step": "final_corrector",
+        "final_distance_km": final_sum,
     }
-
 
 # --- FINAL CORRECTOR ---
 
@@ -282,6 +312,7 @@ def final_corrector_node(state: AgentState):
             distance_one_way=round(one_way_dist, 1),
             departure_time="14:00",
             return_departure_time="15:00",
+            description="Administratíva/rokovania"
         )
     )
 
@@ -289,7 +320,7 @@ def final_corrector_node(state: AgentState):
     print(f"Pridaná servisná jazda {one_way_dist:.1f} km (one-way). "
           f"Nový súčet: {final_sum:.2f} km (odchýlka: {final_sum - target:+.2f} km).")
 
-    return {"ai_trip_plan": trips, "final_sum_km": final_sum, "next_step": "processor"}
+    return {"ai_trip_plan": trips, "final_sum_km": final_sum, "next_step": "processor", "final_distance_km": final_sum}
 
 
 # --- PROCESSOR ---
@@ -333,6 +364,7 @@ def processor_node(state: AgentState):
                 "Odchod Čas": trip.departure_time,
                 "Cieľ Miesto": trip.destination_name,
                 "Príchod Čas": arr_time_obj.strftime("%H:%M"),
+                "Popis Cesty": trip.description,
                 "Stav Tachometra": int(current_odo),
                 "Km Jazda": dist_one_way,
             }
@@ -346,6 +378,7 @@ def processor_node(state: AgentState):
                 "Odchod Čas": trip.return_departure_time,
                 "Cieľ Miesto": state["start_city"],
                 "Príchod Čas": ret_arr_time_obj.strftime("%H:%M"),
+                "Popis Cesty": trip.description,
                 "Stav Tachometra": int(current_odo),
                 "Km Jazda": dist_one_way,
             }

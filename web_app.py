@@ -44,7 +44,7 @@ async def generate(
     year: int = Form(...),
 ):
     # spustíme backend službu
-    df, csv_str, xlsx_bytes = await run_logbook(
+    df, csv_str, xlsx_bytes, total_km = await run_logbook(
         start_city=start_city,
         start_odo=start_odo,
         end_odo=end_odo,
@@ -59,6 +59,7 @@ async def generate(
         "xlsx": xlsx_bytes,
         "month": month,
         "year": year,
+        "total_km": total_km,
     }
 
 
@@ -78,7 +79,8 @@ async def generate(
             "month": month,
             "year": year,
             "target_km": end_odo - start_odo,
-        },
+            "total_km": total_km,
+           },
     )
 
 

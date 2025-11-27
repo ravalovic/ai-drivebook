@@ -6,73 +6,96 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<div class="form-container">
-    <h2>AI Drivebook – Generátor knihy jázd</h2>
 
-    <form id="drivebook-form" method="post" action="/generate">
+<!-- Loading overlay -->
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div>Generujem knihu jázd… Môže trvať ~ 10-30 sekúnd</div>
+</div>
+
+<div class="form-container">
+    <h1>AI Drivebook – Generátor knihy jázd</h1>
+
+    <form id="logbook-form" method="post" action="/generate">
 
         <div class="form-group">
             <label for="start_city">Východzie mesto</label>
-            <input type="text" id="start_city" name="start_city" value="{{ defaults.start_city }}" required>
+            <input type="text" id="start_city" name="start_city"
+                   value="{{ defaults.start_city }}" required>
         </div>
 
         <div class="form-group">
             <label for="start_odo">Počiatočný stav tachometra</label>
-            <input type="number" id="start_odo" name="start_odo" value="{{ defaults.start_odo }}" required>
+            <input type="number" id="start_odo" name="start_odo"
+                   value="{{ defaults.start_odo }}" required>
         </div>
 
         <div class="form-group">
             <label for="end_odo">Koncový stav tachometra</label>
-            <input type="number" id="end_odo" name="end_odo" value="{{ defaults.end_odo }}" required>
+            <input type="number" id="end_odo" name="end_odo"
+                   value="{{ defaults.end_odo }}" required>
         </div>
 
         <div class="form-group">
             <label for="month">Mesiac</label>
-            <input type="number" id="month" name="month" min="1" max="12" value="{{ defaults.month }}" required>
+            <input type="number" id="month" name="month" min="1" max="12"
+                   value="{{ defaults.month }}" required>
         </div>
 
         <div class="form-group">
             <label for="year">Rok</label>
-            <input type="number" id="year" name="year" value="{{ defaults.year }}" required>
+            <input type="number" id="year" name="year"
+                   value="{{ defaults.year }}" required>
         </div>
 
         <div class="button-wrapper">
-            <button type="submit" class="submit-btn">Vygenerovať knihu jázd</button>
+            <button type="submit" class="submit-btn">
+                Vygenerovať knihu jázd
+            </button>
         </div>
-
     </form>
 
-    <p class="note">
-        Posledné zadané hodnoty sa ukladajú v prehliadači (localStorage), takže sa<br>
-        zachovajú aj po návrate späť alebo po reštarte servera.
+    <p class="small-note">
+        Posledné zadané hodnoty sa ukladajú lokálne v prehliadači (localStorage),
+        takže sa zachovajú aj po návrate späť alebo po reštarte servera.
     </p>
 </div>
 
-<!-- LocalStorage JS -->
 <script>
     document.addEventListener("DOMContentLoaded", () => {
+        const FORM_ID = "logbook-form";
         const FIELD_IDS = ["start_city", "start_odo", "end_odo", "month", "year"];
         const PREFIX = "drivebook_";
 
-        // Load saved values
-        FIELD_IDS.forEach((id) => {
+        const form = document.getElementById(FORM_ID);
+        if (!form) {
+            console.error("Form s id", FORM_ID, "sa nenašiel – JS sa nespustí.");
+            return;
+        }
+
+        // 1) Načítanie uložených hodnôt z localStorage
+        FIELD_IDS.forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             const saved = localStorage.getItem(PREFIX + id);
-            if (saved !== null) el.value = saved;
+            if (saved !== null) {
+                el.value = saved;
+            }
         });
 
-        // Save on submit
-        const form = document.getElementById("logbook-form");
-        if (form) {
-            form.addEventListener("submit", () => {
-                FIELD_IDS.forEach((id) => {
-                    const el = document.getElementById(id);
-                    if (!el) return;
-                    localStorage.setItem(PREFIX + id, el.value);
-                });
+        // 2) Ukladanie + zobrazenie overlay pri submit-e
+        form.addEventListener("submit", () => {
+            FIELD_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                localStorage.setItem(PREFIX + id, el.value);
             });
-        }
+
+            const overlay = document.getElementById("loading-overlay");
+            if (overlay) {
+                overlay.style.display = "flex";
+            }
+        });
     });
 </script>
 

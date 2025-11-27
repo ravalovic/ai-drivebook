@@ -23,10 +23,43 @@ import requests
 # --------------------------------------------------------------------
 DEBUG = False
 SERVER_NAME = "distance-driving-server"
+
+#OSRM_URL_TEMPLATE = (
+#    "http://router.project-osrm.org/route/v1/driving/"
+#    "{lon1},{lat1};{lon2},{lat2}?overview=false"
+#)
+#
+##local dockered OSRM    
+#OSRM_URL_TEMPLATE = (
+#    "http://localhost:5000/route/v1/driving/"
+#    "{lon1},{lat1};{lon2},{lat2}?overview=false"
+#)
+
+LOCAL_OSRM = "http://localhost:5000"
+REMOTE_OSRM = "http://router.project-osrm.org"
 OSRM_URL_TEMPLATE = (
-    "http://router.project-osrm.org/route/v1/driving/"
+    "{base}/route/v1/driving/"
     "{lon1},{lat1};{lon2},{lat2}?overview=false"
 )
+
+# skontroluj a zisti co pouzit
+def detect_osrm_server(timeout=0.8):
+    """
+    Zistí, či beží lokálny OSRM (Docker).
+    Ak nie, vráti fallback URL.
+    """
+    test_url = f"{LOCAL_OSRM}/route/v1/driving/17,48;17,48?overview=false"
+
+    try:
+        resp = requests.get(test_url, timeout=timeout)
+        # ak OSRM beží, vždy vráti JSON (aj keď error=0 distance)
+        if resp.status_code in (200, 400):
+            return LOCAL_OSRM
+    except Exception:
+        pass
+    
+    return FALLBACK_OSRM
+
 
 # --------------------------------------------------------------------
 # Pomocná funkcia na logovanie
@@ -51,21 +84,30 @@ log("====================================================")
 mcp = FastMCP(SERVER_NAME)
 
 log("Inicializujem Nominatim geocoder…")
-geolocator = Nominatim(user_agent=f"{SERVER_NAME}-geocoder")
+geolocator = Nominatim(user_agent=f"{SERVER_NAME}-geocoder", timeout=10)
 log("Nominatim geocoder inicializovaný.")
 
+# lokalna cache geokódovania {city_name_lower: (lat, lon)}
+_geocode_cache: dict[str, tuple[float, float]] = {}
 
 # --------------------------------------------------------------------
 # Helper 
 # --------------------------------------------------------------------
 def geocode_city(city: str):
-    #Prevedie názov mesta na (lat, lon)
+    city_key = city.strip().lower()
+    if city_key in _geocode_cache:
+        log(f"[GEOCODE] Cache hit pre {city!r}")
+        return _geocode_cache[city_key]
+
     log(f"[GEOCODE] Geocoding mesta: {city!r}")
     loc = geolocator.geocode(city)
     if not loc:
         raise ValueError(f"Nepodarilo sa geokódovať mesto: {city}")
-    log(f"[GEOCODE] {city!r} → ({loc.latitude}, {loc.longitude})")
-    return (loc.latitude, loc.longitude)
+
+    coord = (loc.latitude, loc.longitude)
+    _geocode_cache[city_key] = coord
+    log(f"[GEOCODE] {city!r} → {coord}")
+    return coord
 
 
 def get_driving_stats(coord1, coord2):
@@ -77,7 +119,8 @@ def get_driving_stats(coord1, coord2):
     lat1, lon1 = coord1
     lat2, lon2 = coord2
 
-    url = OSRM_URL_TEMPLATE.format(
+    url = OSRM_URL_TEMPLATE.format( 
+        base = detect_osrm_server(),
         lon1=lon1, lat1=lat1,
         lon2=lon2, lat2=lat2,
     )
@@ -93,7 +136,7 @@ def get_driving_stats(coord1, coord2):
     route = data["routes"][0]
     duration = route["duration"]  # sekundy
     distance_m = route["distance"]  # metre
-    distance_km = round(distance_m / 1000.0,1)
+    distance_km = round(distance_m / 1000.0,0)
 
     log(
         f"[OSRM] OK – duration={duration:.1f} s, "

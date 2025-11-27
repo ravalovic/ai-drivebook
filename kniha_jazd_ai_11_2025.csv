@@ -1,19 +1,19 @@
-Dátum;Odchod Miesto;Odchod Čas;Cieľ Miesto;Príchod Čas;Stav Tachometra;Km Jazda
-2025-11-03;Vrbové;07:00;Bratislava;08:00;125746;92.5
-2025-11-03;Bratislava;15:30;Vrbové;16:30;125839;92.5
-2025-11-04;Vrbové;06:30;Trnava;07:30;125886;47.9
-2025-11-04;Trnava;14:00;Vrbové;15:00;125934;47.9
-2025-11-05;Vrbové;06:45;Žilina;07:45;126060;126.1
-2025-11-05;Žilina;17:00;Vrbové;18:00;126187;126.1
-2025-11-07;Vrbové;06:00;Trenčín;07:00;126242;55.9
-2025-11-07;Trenčín;14:30;Vrbové;15:30;126298;55.9
-2025-11-11;Vrbové;06:15;Bratislava;07:15;126391;92.5
-2025-11-11;Bratislava;14:45;Vrbové;15:45;126483;92.5
-2025-11-12;Vrbové;07:00;Trnava;08:00;126531;47.9
-2025-11-12;Trnava;15:00;Vrbové;16:00;126579;47.9
-2025-11-13;Vrbové;06:30;Žilina;07:30;126705;126.1
-2025-11-13;Žilina;17:00;Vrbové;18:00;126831;126.1
-2025-11-14;Vrbové;07:00;Banská Bystrica;08:00;127034;202.7
-2025-11-14;Banská Bystrica;18:00;Vrbové;19:00;127237;202.7
-2025-11-28;Vrbové;14:00;Servisná Jazda (doladenie);15:00;127240;2.9
-2025-11-28;Servisná Jazda (doladenie);15:00;Vrbové;16:00;127242;2.9
+Dátum;Odchod Miesto;Odchod Čas;Cieľ Miesto;Príchod Čas;Popis Cesty;Stav Tachometra;Km Jazda
+2025-11-03;Vrbové;07:00;Bratislava;08:00;Obchodné rokovanie o IT;125746;92.0
+2025-11-03;Bratislava;15:30;Vrbové;16:30;Obchodné rokovanie o IT;125838;92.0
+2025-11-04;Vrbové;06:30;Trnava;07:30;Kontrola technického vybavenia;125886;48.0
+2025-11-04;Trnava;15:00;Vrbové;16:00;Kontrola technického vybavenia;125934;48.0
+2025-11-05;Vrbové;07:30;Piešťany;08:30;Servis IT infraštruktúry;125945;11.0
+2025-11-05;Piešťany;16:00;Vrbové;17:00;Servis IT infraštruktúry;125956;11.0
+2025-11-06;Vrbové;06:45;Nitra;07:45;Konzultácia vývoja softvéru;126016;60.0
+2025-11-06;Nitra;15:15;Vrbové;16:15;Konzultácia vývoja softvéru;126076;60.0
+2025-11-07;Vrbové;07:15;Trenčín;08:15;Implementácia cloud riešenia;126132;56.0
+2025-11-07;Trenčín;16:00;Vrbové;17:00;Implementácia cloud riešenia;126188;56.0
+2025-11-10;Vrbové;06:00;Žilina;07:00;Analýza bezpečnostných rizík;126314;126.0
+2025-11-10;Žilina;17:00;Vrbové;18:00;Analýza bezpečnostných rizík;126440;126.0
+2025-11-11;Vrbové;06:30;Banská Bystrica;07:30;Obchodné rokovanie o IT;126642;202.0
+2025-11-11;Banská Bystrica;18:00;Vrbové;19:00;Obchodné rokovanie o IT;126844;202.0
+2025-11-12;Vrbové;07:00;Martin;08:00;Kontrola technického vybavenia;126928;84.0
+2025-11-12;Martin;16:00;Vrbové;17:00;Kontrola technického vybavenia;127012;84.0
+2025-11-14;Vrbové;07:00;Prievidza;08:00;Konzultácia vývoja softvéru;127128;116.0
+2025-11-14;Prievidza;16:30;Vrbové;17:30;Konzultácia vývoja softvéru;127244;116.0

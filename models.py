@@ -11,6 +11,7 @@ class TripEntry(BaseModel):
     return_departure_time: str = Field(
         description="Čas odchodu späť (HH:MM), tak aby celkový čas bol >8h"
     )
+    description: str = Field(description="Stručný 3–6-slovný popis pracovnej aktivity súvisiacej s podnikaním a IT.")
 
 
 class TripSchedule(BaseModel):
@@ -38,7 +39,9 @@ class AgentState(TypedDict):
     # Interná logika
     workdays: List[str]              # ISO dátumy pracovných dní
     available_destinations: List[Dict]  # Mestá s dist/dur
-
+    #Vypocitana vzdialenost celkova
+    final_distance_km: float
+    
     # Riadenie cyklu
     retry_count: int
     feedback_message: str

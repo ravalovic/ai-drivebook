@@ -1,41 +1,66 @@
-from asyncio import sleep
+# mcp_client.py
+import os
 import json
-from typing import Dict, List, Tuple
+from typing import List, Dict, Tuple
 
-from mcp import ClientSession
+from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from config import SERVER_PARAMS
+from dbcache import init_db, get_distance_from_db, save_mcp_record
+
+
+# Inicializácia DB pri importe
+init_db()
+
+# MCP server parametre
+server_script_path = os.path.join(os.path.dirname(__file__), "mcp", "server.py")
+print("Spúšťam MCP server cez STDIO:", server_script_path)
+
+server_params = StdioServerParameters(
+    command="python",
+    args=[server_script_path],
+    env=None,
+)
 
 
 async def get_map_data_from_mcp(start_city: str, candidate_cities: List[str]) -> Dict[str, Tuple[float, int]]:
     """
-    Volá MCP tool 'driving_time_between_cities' priamo cez MCP clienta,
-    nie cez HTTP. Pre každé mesto v candidate_cities sa vykoná  MCP tool call.
-
-    MCP result.content[0].text je JSON string:
-    {
-        "city1": "Vrbové",
-        "city2": "Bratislava",
-        "driving_time_seconds": 3951,
-        "driving_time_human": "1 h 6 min",
-        "distance_km_road": 92.52,
-        "distance_km_air": 69.12
-    }
+    1. Skúsi nájsť trasy v lokálnej SQLite DB (city_distances).
+    2. Pre chýbajúce mestá zavolá MCP tool `driving_time_between_cities`.
+    3. Nové výsledky z MCP uloží celé do DB (save_mcp_record).
+    4. Vráti city_map: { city_name: (distance_km_road, duration_min) }.
     """
-    print("--- MCP: PRIAME VOLANIE driving_time_between_cities (per-city) ---")
+    print("--- MAP DATA: DB cache + MCP fallback ---")
 
     city_map: Dict[str, Tuple[float, int]] = {}
+    missing: List[str] = []
 
-    async with stdio_client(SERVER_PARAMS) as (read, write):
+    # 1) Najprv čítanie z DB cache
+    for dest_city in candidate_cities:
+        cached = get_distance_from_db(start_city, dest_city)
+        if cached:
+            dist_km, duration_min = cached
+            city_map[dest_city] = (dist_km, duration_min)
+            print(f"[DB] {start_city} -> {dest_city}: {dist_km:.2f} km, {duration_min} min")
+        else:
+            missing.append(dest_city)
+
+    if not missing:
+        print("[MAP DATA] Všetky trasy nájdené v DB, MCP sa nevolá.")
+        return city_map
+
+    print(f"[MAP DATA] Pre {len(missing)} miest nie sú dáta v DB – volám MCP.")
+
+    # 2) MCP iba pre chýbajúce
+    async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
             print("Available MCP services:", [t.name for t in tools.tools])
 
-            for dest_city in candidate_cities:
+            for dest_city in missing:
                 print(f"→ MCP call: {start_city} → {dest_city}")
-                sleep(2)  
+
                 result = await session.call_tool(
                     "driving_time_between_cities",
                     {
@@ -43,8 +68,7 @@ async def get_map_data_from_mcp(start_city: str, candidate_cities: List[str]) ->
                         "city2": dest_city,
                     }
                 )
-                # MCP call: Vrbové → Martin
-                # Haluz roka Martin: 3077.90 km, 1904 min
+
                 try:
                     raw_json = result.content[0].text
                     data = json.loads(raw_json)
@@ -59,11 +83,16 @@ async def get_map_data_from_mcp(start_city: str, candidate_cities: List[str]) ->
                     print(f"MCP dáta neúplné pre {dest_city}: {data}  ({e})")
                     continue
 
+                # pridáme do mapy pre ďalšie spracovanie
                 city_map[dest_city] = (dist_km, duration_min)
-                print(f"{dest_city}: {dist_km:.2f} km, {duration_min} min")
+                print(f"[MCP] {dest_city}: {dist_km:.2f} km, {duration_min} min")
+
+                # uložíme CELÝ MCP záznam do DB
+                save_mcp_record(data)
+                print(f"[DB] Uložené: {data['city1']} ↔ {data['city2']}")
 
     if not city_map:
-        raise RuntimeError("MCP nevrátil žiadne trasy.")
+        raise RuntimeError("MCP nevrátil žiadne použiteľné trasy ani po cache pokuse.")
 
-    print(f"Finálny city_map z MCP: {city_map}")
+    print(f"Finálny city_map (DB + MCP): {city_map}")
     return city_map

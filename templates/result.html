@@ -6,16 +6,21 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Výsledná kniha jázd</h1>
+    <div class="result-header" align="center">
+        <h2>Výsledná kniha jázd</h2>
+    </div>
 
-    <p>
-        Východzie mesto: <strong>{{ start_city }}</strong><br>
-        Start odo: <strong>{{ start_odo }}</strong><br>
-        End odo: <strong>{{ end_odo }}</strong><br>
-        Mesiac/Rok: <strong>{{ month }}/{{ year }}</strong><br>
-        Cieľová vzdialenosť: <strong>{{ target_km }} km</strong>
-    </p>
-
+    <div class="result-meta"></div>
+        <p>
+            Východzie mesto: <strong>{{ start_city }}</strong><br>
+            Start odo: <strong>{{ start_odo }}</strong><br>
+            End odo: <strong>{{ end_odo }}</strong><br>
+            Mesiac/Rok: <strong>{{ month }}/{{ year }}</strong><br>
+            Cieľová vzdialenosť: <strong>{{ target_km }} km</strong><br>
+            Vypočítaná vzdialenosť: <strong>{{ total_km }} km</strong><br>
+            Rozdiel: <strong>{{ total_km - target_km }} km - dolaď ručne</strong>
+        </p>
+    </div>
     <div class="layout">
     <div class="table-card">
         <h2>Vygenerovaná kniha jázd</h2>

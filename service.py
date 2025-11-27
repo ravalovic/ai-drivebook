@@ -76,6 +76,7 @@ async def run_logbook(
 
     # --- 4. CSV -> DataFrame ---
     df = pd.read_csv(io.StringIO(csv_str), sep=";")
+    total_km = df["Km Jazda"].sum()
 
     # --- 5. DataFrame -> XLSX (do pamäte) ---
     xlsx_buffer = io.BytesIO()
@@ -83,4 +84,4 @@ async def run_logbook(
     xlsx_buffer.seek(0)
     xlsx_bytes = xlsx_buffer.getvalue()
 
-    return df, csv_str, xlsx_bytes
+    return df, csv_str, xlsx_bytes, total_km
